@@ -12,8 +12,9 @@ import {
 import { normalizeMessage, normalizeRoleForGrouping } from "../chat/message-normalizer.ts";
 import { icons } from "../icons.ts";
 import { detectTextDirection } from "../text-direction.ts";
-import { renderMarkdownSidebar } from "./markdown-sidebar.ts";
 import "../components/resizable-divider.ts";
+import { renderMarkdownSidebar } from "./markdown-sidebar.ts";
+import "../components/slash-autocomplete.ts";
 
 export type CompactionIndicatorStatus = {
   active: boolean;
@@ -69,6 +70,7 @@ export type ChatProps = {
   onCloseSidebar?: () => void;
   onSplitRatioChange?: (ratio: number) => void;
   onChatScroll?: (event: Event) => void;
+  slashCommands?: Array<{ name: string; description: string }>;
 };
 
 const COMPACTION_TOAST_DURATION_MS = 5000;
@@ -368,8 +370,19 @@ export function renderChat(props: ChatProps) {
           : nothing
       }
 
-      <div class="chat-compose">
+      <div class="chat-compose" style="position:relative">
         ${renderAttachmentPreview(props)}
+        <slash-autocomplete
+          .commands=${props.slashCommands ?? []}
+          .filter=${props.draft.startsWith("/") ? props.draft.slice(1).split(/\s/)[0] : ""}
+          .visible=${props.draft.startsWith("/") && !props.draft.includes(" ")}
+          @slash-select=${(e: CustomEvent<{ command: string }>) => {
+            props.onDraftChange("/" + e.detail.command + " ");
+          }}
+          @slash-dismiss=${() => {
+            // Keep draft as-is, just close popup
+          }}
+        ></slash-autocomplete>
         <div class="chat-compose__row">
           <label class="field chat-compose__field">
             <span>Message</span>
@@ -379,6 +392,15 @@ export function renderChat(props: ChatProps) {
               dir=${detectTextDirection(props.draft)}
               ?disabled=${!props.connected}
               @keydown=${(e: KeyboardEvent) => {
+                // Let slash autocomplete handle keys first
+                const acEl = (e.target as HTMLTextAreaElement)
+                  .closest(".chat-compose")
+                  ?.querySelector("slash-autocomplete") as
+                  | import("../components/slash-autocomplete.ts").SlashAutocomplete
+                  | null;
+                if (acEl?.handleKeydown(e)) {
+                  return;
+                }
                 if (e.key !== "Enter") {
                   return;
                 }

@@ -55,6 +55,7 @@ export type AppViewState = {
   chatSending: boolean;
   chatMessage: string;
   chatAttachments: ChatAttachment[];
+  slashCommands: Array<{ name: string; description: string }>;
   chatMessages: unknown[];
   chatToolMessages: unknown[];
   chatStream: string | null;

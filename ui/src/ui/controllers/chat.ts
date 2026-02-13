@@ -209,3 +209,20 @@ export function handleChatEvent(state: ChatState, payload?: ChatEventPayload) {
   }
   return payload.state;
 }
+
+export type SlashCommandEntry = {
+  name: string;
+  description: string;
+};
+
+export async function fetchSlashCommands(state: ChatState): Promise<SlashCommandEntry[]> {
+  if (!state.client || !state.connected) {
+    return [];
+  }
+  try {
+    const res = await state.client.request<{ commands: SlashCommandEntry[] }>("chat.commands", {});
+    return Array.isArray(res.commands) ? res.commands : [];
+  } catch {
+    return [];
+  }
+}

@@ -6,6 +6,7 @@ import type { GatewayRequestContext, GatewayRequestHandlers } from "./types.js";
 import { resolveSessionAgentId } from "../../agents/agent-scope.js";
 import { resolveThinkingDefault } from "../../agents/model-selection.js";
 import { resolveAgentTimeoutMs } from "../../agents/timeout.js";
+import { listChatCommands } from "../../auto-reply/commands-registry.js";
 import { dispatchInboundMessage } from "../../auto-reply/dispatch.js";
 import { createReplyDispatcher } from "../../auto-reply/reply/reply-dispatcher.js";
 import { createReplyPrefixOptions } from "../../channels/reply-prefix.js";
@@ -705,5 +706,16 @@ export const chatHandlers: GatewayRequestHandlers = {
     context.nodeSendToSession(rawSessionKey, "chat", chatPayload);
 
     respond(true, { ok: true, messageId: appended.messageId });
+  },
+  "chat.commands": ({ respond }) => {
+    const commands = listChatCommands();
+    const result = commands
+      .filter((cmd) => cmd.scope !== "native" && cmd.textAliases.length > 0)
+      .map((cmd) => ({
+        name: cmd.textAliases[0]?.replace(/^\//, "") ?? cmd.key,
+        description: cmd.description,
+        aliases: cmd.textAliases,
+      }));
+    respond(true, { commands: result });
   },
 };
