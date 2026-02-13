@@ -94,6 +94,47 @@ function ensureTranscriptFile(params: { transcriptPath: string; sessionId: strin
   }
 }
 
+function appendUserTranscriptMessage(params: {
+  message: string;
+  sessionId: string;
+  storePath: string | undefined;
+  sessionFile?: string;
+}): TranscriptAppendResult {
+  const transcriptPath = resolveTranscriptPath({
+    sessionId: params.sessionId,
+    storePath: params.storePath,
+    sessionFile: params.sessionFile,
+  });
+  if (!transcriptPath) {
+    return { ok: false, error: "transcript path not resolved" };
+  }
+
+  if (!fs.existsSync(transcriptPath)) {
+    const ensured = ensureTranscriptFile({
+      transcriptPath,
+      sessionId: params.sessionId,
+    });
+    if (!ensured.ok) {
+      return { ok: false, error: ensured.error ?? "failed to create transcript file" };
+    }
+  }
+
+  const now = Date.now();
+  const messageBody: AppendMessageArg & Record<string, unknown> = {
+    role: "user",
+    content: [{ type: "text" as const, text: params.message }],
+    timestamp: now,
+  };
+
+  try {
+    const sessionManager = SessionManager.open(transcriptPath);
+    const messageId = sessionManager.appendMessage(messageBody);
+    return { ok: true, messageId, message: messageBody };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
 function appendAssistantTranscriptMessage(params: {
   message: string;
   label?: string;
@@ -558,6 +599,19 @@ export const chatHandlers: GatewayRequestHandlers = {
       })
         .then(() => {
           if (!agentRunStarted) {
+            // Persist the user message for command-only interactions so it
+            // survives history reloads.  Agent runs persist the user message
+            // themselves, but slash-command replies skip the agent entirely.
+            {
+              const { storePath: userStorePath, entry: userEntry } = loadSessionEntry(sessionKey);
+              const userSessionId = userEntry?.sessionId ?? entry?.sessionId ?? clientRunId;
+              appendUserTranscriptMessage({
+                message: parsedMessage,
+                sessionId: userSessionId,
+                storePath: userStorePath,
+                sessionFile: userEntry?.sessionFile,
+              });
+            }
             const combinedReply = finalReplyParts
               .map((part) => part.trim())
               .filter(Boolean)

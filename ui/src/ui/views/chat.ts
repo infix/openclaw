@@ -392,13 +392,14 @@ export function renderChat(props: ChatProps) {
               dir=${detectTextDirection(props.draft)}
               ?disabled=${!props.connected}
               @keydown=${(e: KeyboardEvent) => {
-                // Let slash autocomplete handle keys first
-                const acEl = (e.target as HTMLTextAreaElement)
-                  .closest(".chat-compose")
-                  ?.querySelector("slash-autocomplete") as
-                  | import("../components/slash-autocomplete.ts").SlashAutocomplete
-                  | null;
-                if (acEl?.handleKeydown(e)) {
+                // Dispatch to slash-autocomplete via bubbling event
+                const handled = new CustomEvent("slash-keydown", {
+                  bubbles: true,
+                  composed: true,
+                  detail: { originalEvent: e },
+                });
+                e.target?.dispatchEvent(handled);
+                if (e.defaultPrevented) {
                   return;
                 }
                 if (e.key !== "Enter") {

@@ -92,9 +92,21 @@ export class SlashAutocomplete extends LitElement {
     );
   }
 
+  private _boundSlashKeydown = (e: Event) =>
+    this._onSlashKeydown(e as CustomEvent<{ originalEvent: KeyboardEvent }>);
+
+  connectedCallback() {
+    super.connectedCallback();
+    this.parentElement?.addEventListener("slash-keydown", this._boundSlashKeydown);
+  }
+
+  disconnectedCallback() {
+    this.parentElement?.removeEventListener("slash-keydown", this._boundSlashKeydown);
+    super.disconnectedCallback();
+  }
+
   updated(changed: Map<string, unknown>) {
     if (changed.has("filter") || changed.has("commands")) {
-      // Reset selection when filter changes
       this.selectedIndex = 0;
     }
     if (changed.has("visible") && this.visible) {
@@ -102,53 +114,49 @@ export class SlashAutocomplete extends LitElement {
     }
   }
 
-  /** Call from parent's keydown handler. Returns true if the event was handled. */
-  handleKeydown(e: KeyboardEvent): boolean {
+  private _onSlashKeydown(e: CustomEvent<{ originalEvent: KeyboardEvent }>) {
+    const ke = e.detail.originalEvent;
     if (!this.visible) {
-      return false;
+      return;
     }
     const items = this.filtered;
     if (!items.length) {
-      return false;
+      return;
     }
 
-    switch (e.key) {
+    switch (ke.key) {
       case "ArrowUp":
-        e.preventDefault();
+        ke.preventDefault();
         this.selectedIndex = this.selectedIndex <= 0 ? items.length - 1 : this.selectedIndex - 1;
         this.scrollSelectedIntoView();
-        return true;
+        break;
 
       case "ArrowDown":
-        e.preventDefault();
+        ke.preventDefault();
         this.selectedIndex = this.selectedIndex >= items.length - 1 ? 0 : this.selectedIndex + 1;
         this.scrollSelectedIntoView();
-        return true;
+        break;
 
       case "Tab":
-        e.preventDefault();
+        ke.preventDefault();
         if (items[this.selectedIndex]) {
           this.selectCommand(items[this.selectedIndex].name);
         }
-        return true;
+        break;
 
       case "Enter":
         // Only autocomplete on Enter if the filter is a partial match.
         // If it exactly matches a command, let Enter pass through to send.
         if (items[this.selectedIndex] && items[this.selectedIndex].name !== this.filter) {
-          e.preventDefault();
+          ke.preventDefault();
           this.selectCommand(items[this.selectedIndex].name);
-          return true;
         }
-        return false;
+        break;
 
       case "Escape":
-        e.preventDefault();
+        ke.preventDefault();
         this.dispatchEvent(new CustomEvent("slash-dismiss"));
-        return true;
-
-      default:
-        return false;
+        break;
     }
   }
 
